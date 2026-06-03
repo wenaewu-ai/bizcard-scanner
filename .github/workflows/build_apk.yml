@@ -30,22 +30,20 @@ jobs:
           channel: stable
           cache: true
 
-      # 有 Secret → 用你的 release keystore（簽名固定，可覆蓋安裝）
       - name: Setup release keystore
-        if: secrets.KEYSTORE_BASE64 != ''
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        if: env.HAS_KEYSTORE == 'true'
         run: |
           mkdir -p ~/.android
-          echo "$KEYSTORE_BASE64" | base64 -d > ~/.android/release.keystore
-          echo "KEYSTORE_PATH=$HOME/.android/release.keystore" >> $GITHUB_ENV
-          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > ~/.android/release.keystore
+          cat > android/key.properties << PROPS
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=$HOME/.android/release.keystore
+          PROPS
 
-      # 沒有 Secret → 產生臨時 debug keystore（每次簽名不同）
       - name: Setup debug keystore (fallback)
-        if: secrets.KEYSTORE_BASE64 == ''
+        if: env.HAS_KEYSTORE != 'true'
         run: |
           mkdir -p ~/.android
           keytool -genkeypair \
@@ -54,18 +52,11 @@ jobs:
             -storepass android \
             -dname "CN=Android Debug,O=Android,C=US" \
             -keyalg RSA -keysize 2048 -validity 10000
-          echo "KEYSTORE_PATH=$HOME/.android/debug.keystore" >> $GITHUB_ENV
-          echo "KEYSTORE_PASSWORD=android" >> $GITHUB_ENV
-          echo "KEY_ALIAS=androiddebugkey" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=android" >> $GITHUB_ENV
-
-      - name: Write key.properties
-        run: |
           cat > android/key.properties << PROPS
-          storePassword=${{ env.KEYSTORE_PASSWORD }}
-          keyPassword=${{ env.KEY_PASSWORD }}
-          keyAlias=${{ env.KEY_ALIAS }}
-          storeFile=${{ env.KEYSTORE_PATH }}
+          storePassword=android
+          keyPassword=android
+          keyAlias=androiddebugkey
+          storeFile=$HOME/.android/debug.keystore
           PROPS
 
       - name: Get dependencies
@@ -84,8 +75,6 @@ jobs:
       - name: Build summary
         run: |
           SIZE=$(du -sh build/app/outputs/flutter-apk/app-release.apk | cut -f1)
-          HAS_SECRET="${{ secrets.KEYSTORE_BASE64 != '' }}"
           echo "### APK Build Successful" >> $GITHUB_STEP_SUMMARY
           echo "- **Size**: $SIZE" >> $GITHUB_STEP_SUMMARY
-          echo "- **Signing**: $([ "$HAS_SECRET" = "true" ] && echo 'Release keystore (可覆蓋安裝)' || echo 'Debug keystore (需重裝)')" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
