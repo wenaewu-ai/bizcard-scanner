@@ -1,7 +1,6 @@
 // lib/screens/scan_screen.dart
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/contact.dart';
 import '../services/scan_queue.dart';
@@ -306,23 +305,20 @@ class _ScanScreenState extends State<ScanScreen> {
           if (job.status == ScanJobStatus.pending)
             const Text('等待辨識', style: TextStyle(fontSize: 13, color: Color(0xFFAAAAAA))),
 
-          if (job.status == ScanJobStatus.error)
-            GestureDetector(
-              onLongPress: () {
-                Clipboard.setData(ClipboardData(text: job.errorMsg ?? ''));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('錯誤訊息已複製'), duration: Duration(seconds: 2)));
-              },
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(child: Text(
-                  '失敗：${job.errorMsg ?? '未知錯誤'}',
-                  style: const TextStyle(fontSize: 12, color: Color(0xFFE24B4A)),
-                  maxLines: 3, overflow: TextOverflow.ellipsis,
-                )),
-                const SizedBox(width: 4),
-                const Icon(Icons.copy_outlined, size: 14, color: Color(0xFFAAAAAA)),
-              ]),
+          if (job.status == ScanJobStatus.error) ...[
+            Text(
+              '失敗：${job.errorMsg ?? '未知錯誤'}',
+              style: const TextStyle(fontSize: 12, color: Color(0xFFE24B4A)),
+              maxLines: 2, overflow: TextOverflow.ellipsis,
             ),
+            const SizedBox(height: 6),
+            _smallActionBtn(
+              '重試',
+              const Color(0xFF1a1a1a),
+              Colors.white,
+              () => _queue.retryJob(job.id),
+            ),
+          ],
         ])),
       ]),
     );

@@ -118,6 +118,14 @@ class ScanQueue extends ChangeNotifier {
     _processNext();
   }
 
+  void retryJob(String id) {
+    final job = jobs.firstWhere((j) => j.id == id, orElse: () => throw Exception('Job not found'));
+    job.status = ScanJobStatus.pending;
+    job.errorMsg = null;
+    notifyListeners();
+    _processNext();
+  }
+
   void removeJob(String id) {
     jobs.removeWhere((j) => j.id == id);
     notifyListeners();
