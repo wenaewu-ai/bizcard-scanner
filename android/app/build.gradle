@@ -1,0 +1,55 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+def keyPropertiesFile = rootProject.file("key.properties")
+def keyProperties = new Properties()
+if (keyPropertiesFile.exists()) {
+    keyPropertiesFile.withReader('UTF-8') { reader -> keyProperties.load(reader) }
+}
+
+android {
+    namespace "com.bizcard.scanner"
+    compileSdk 35
+    ndkVersion "26.1.10909125"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    signingConfigs {
+        release {
+            keyAlias keyProperties['keyAlias'] ?: 'androiddebugkey'
+            keyPassword keyProperties['keyPassword'] ?: 'android'
+            storeFile file(keyProperties['storeFile'] ?: "${System.getProperty('user.home')}/.android/debug.keystore")
+            storePassword keyProperties['storePassword'] ?: 'android'
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.bizcard.scanner"
+        minSdk 23
+        targetSdk 35
+        versionCode flutter.versionCode
+        versionName flutter.versionName
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+flutter {
+    source '../..'
+}
