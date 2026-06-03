@@ -18,6 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _showKey = false;
   int _count = 0;
   bool _exporting = false;
+  bool _importing = false;
 
   @override
   void initState() {
@@ -77,6 +78,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('匯出失敗：$e')));
     } finally {
       setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _import() async {
+    setState(() => _importing = true);
+    try {
+      final result = await ExportService.importJSON();
+      if (result == null) return; // 使用者取消
+      await _load(); // 重新整理計數
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('匯入完成'),
+            content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('✓ 成功匯入：\${result.imported} 筆'),
+              if (result.duplicates > 0)
+                Text('⚠ 手機重複略過：\${result.duplicates} 筆',
+                  style: const TextStyle(color: Color(0xFFBA7517))),
+              if (result.skipped > 0)
+                Text('✗ 格式錯誤略過：\${result.skipped} 筆',
+                  style: TextStyle(color: Colors.grey[400])),
+            ]),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('確定'))],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('匯入失敗：$e')));
+    } finally {
+      setState(() => _importing = false);
     }
   }
 
@@ -159,6 +192,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.chevron_right, color: Color(0xFFD0CEC7)),
             onTap: _exporting ? null : _export),
+          _divider(),
+          ListTile(
+            leading: const Icon(Icons.download_outlined),
+            title: const Text('匯入 JSON 備份'),
+            subtitle: const Text('從備份檔還原聯絡人'),
+            trailing: _importing
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.chevron_right, color: Color(0xFFD0CEC7)),
+            onTap: _importing ? null : _import),
           _divider(),
           ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red),
             title: const Text('清除所有聯絡人', style: TextStyle(color: Colors.red)),
