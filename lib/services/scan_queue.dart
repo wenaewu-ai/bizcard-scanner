@@ -8,13 +8,14 @@ import 'ollama_service.dart';
 import 'settings_service.dart';
 import 'contact_store.dart';
 
-enum ScanJobStatus { pending, scanning, done, error }
+enum ScanJobStatus { pending, scanning, duplicate, done, error }
 
 class ScanJob {
   final String id;
   final File imageFile;
   ScanJobStatus status;
   Contact? result;
+  Contact? duplicateOf; // 發現重複時，這是已存在的聯絡人
   String? errorMsg;
 
   ScanJob({required this.id, required this.imageFile})
@@ -40,6 +41,9 @@ class ScanQueue extends ChangeNotifier {
 
   Future<void> _processNext() async {
     if (_processing) return;
+    // 有 duplicate 狀態的 job 在等用戶決定，先不處理後面的
+    if (jobs.any((j) => j.status == ScanJobStatus.duplicate)) return;
+
     final pending = jobs.where((j) => j.status == ScanJobStatus.pending).toList();
     if (pending.isEmpty) return;
 
@@ -50,34 +54,68 @@ class ScanQueue extends ChangeNotifier {
 
     try {
       final settings = await AppSettings.load();
+      if (settings.apiKey.isEmpty) throw Exception('請先到「設定」填入 Ollama API Key');
 
-      if (settings.apiKey.isEmpty) {
-        throw Exception('請先到「設定」填入 Ollama API Key');
-      }
-
-      // 壓縮圖片（簡單縮圖，不用 image 套件避免 isolate 問題）
-      final b64 = await _compressToBase64(job.imageFile);
-
+      final b64 = await _toBase64(job.imageFile);
       final service = OllamaService(
         apiKey: settings.apiKey,
         model: settings.model,
         baseUrl: settings.baseUrl,
       );
-
       final contact = await service.scanCard(b64);
-      await ContactStore.add(contact);
-
       job.result = contact;
-      job.status = ScanJobStatus.done;
+
+      // 檢查重複
+      final existing = await ContactStore.findDuplicate(contact);
+      if (existing != null) {
+        job.status = ScanJobStatus.duplicate;
+        job.duplicateOf = existing;
+        // 不繼續處理，等用戶決定
+      } else {
+        await ContactStore.add(contact);
+        job.status = ScanJobStatus.done;
+      }
     } catch (e) {
       job.status = ScanJobStatus.error;
       job.errorMsg = e.toString().replaceAll('Exception: ', '');
     } finally {
       _processing = false;
       notifyListeners();
-      // 繼續處理下一張
-      _processNext();
+      if (!jobs.any((j) => j.status == ScanJobStatus.duplicate)) {
+        _processNext();
+      }
     }
+  }
+
+  // 用戶選「另存新的」
+  Future<void> resolveKeepBoth(String jobId) async {
+    final job = jobs.firstWhere((j) => j.id == jobId);
+    if (job.result == null) return;
+    await ContactStore.add(job.result!);
+    job.status = ScanJobStatus.done;
+    job.duplicateOf = null;
+    notifyListeners();
+    _processNext();
+  }
+
+  // 用戶選「更新舊的」
+  Future<void> resolveUpdate(String jobId) async {
+    final job = jobs.firstWhere((j) => j.id == jobId);
+    if (job.result == null || job.duplicateOf == null) return;
+    await ContactStore.replaceWith(job.duplicateOf!, job.result!);
+    job.status = ScanJobStatus.done;
+    job.duplicateOf = null;
+    notifyListeners();
+    _processNext();
+  }
+
+  // 用戶選「略過」
+  void resolveSkip(String jobId) {
+    final job = jobs.firstWhere((j) => j.id == jobId);
+    job.status = ScanJobStatus.done;
+    job.duplicateOf = null;
+    notifyListeners();
+    _processNext();
   }
 
   void removeJob(String id) {
@@ -90,8 +128,7 @@ class ScanQueue extends ChangeNotifier {
     notifyListeners();
   }
 
-  // 直接讀 bytes 轉 base64（image_picker 已經處理壓縮）
-  static Future<String> _compressToBase64(File file) async {
+  static Future<String> _toBase64(File file) async {
     final bytes = await file.readAsBytes();
     return base64Encode(bytes);
   }

@@ -77,4 +77,5 @@ jobs:
           SIZE=$(du -sh build/app/outputs/flutter-apk/app-release.apk | cut -f1)
           echo "### APK Build Successful" >> $GITHUB_STEP_SUMMARY
           echo "- **Size**: $SIZE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Signing**: ${{ env.HAS_KEYSTORE == 'true' && 'Release keystore (可覆蓋安裝)' || 'Debug keystore' }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
