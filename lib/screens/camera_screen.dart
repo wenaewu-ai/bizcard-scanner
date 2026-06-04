@@ -1,5 +1,4 @@
 // lib/screens/camera_screen.dart
-// 內建相機：對焦穩定後自動拍照，不依賴 ML Kit
 import 'dart:async';
 import 'dart:io';
 import 'package:camera/camera.dart';
@@ -10,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 class CameraScreen extends StatefulWidget {
   final bool continuous;
   final void Function(File image) onCapture;
+  static const maxShots = 10; // 單次連續掃描上限
 
   const CameraScreen({
     super.key,
@@ -25,11 +25,9 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   CameraController? _ctrl;
   bool _initialized = false;
   bool _capturing = false;
-  bool _focused = false;
-  int _stableCount = 0;
-  Timer? _autoTimer;
-  Timer? _countdownTimer;
-  int _countdown = 0;
+  bool _showSuccess = false;
+  int _shotCount = 0;
+  Timer? _successTimer;
 
   @override
   void initState() {
@@ -41,8 +39,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _autoTimer?.cancel();
-    _countdownTimer?.cancel();
+    _successTimer?.cancel();
     _ctrl?.dispose();
     super.dispose();
   }
@@ -51,9 +48,9 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_ctrl == null || !_ctrl!.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
-      _autoTimer?.cancel();
       _ctrl?.dispose();
       _ctrl = null;
+      if (mounted) setState(() => _initialized = false);
     } else if (state == AppLifecycleState.resumed) {
       _initCamera();
     }
@@ -86,75 +83,9 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
     await ctrl.setFocusMode(FocusMode.auto);
     await ctrl.setExposureMode(ExposureMode.auto);
 
-    setState(() {
-      _ctrl = ctrl;
-      _initialized = true;
-    });
-
-    // 監聽對焦狀態
-    ctrl.addListener(_onCameraUpdate);
-
-    // 自動拍照：2秒後如果沒手動拍就自動觸發
-    _startAutoTimer();
+    setState(() { _ctrl = ctrl; _initialized = true; });
   }
 
-  void _onCameraUpdate() {
-    if (_ctrl == null || !_ctrl!.value.isInitialized) return;
-    final isFocused = !_ctrl!.value.isTakingPicture;
-    if (isFocused != _focused && mounted) {
-      setState(() => _focused = isFocused);
-    }
-  }
-
-  void _startAutoTimer() {
-    _autoTimer?.cancel();
-    _countdownTimer?.cancel();
-    _stableCount = 0;
-
-    // 倒數 3 秒自動拍照
-    setState(() => _countdown = 3);
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) { t.cancel(); return; }
-      setState(() => _countdown--);
-      if (_countdown <= 0) {
-        t.cancel();
-        if (!_capturing) _capture();
-      }
-    });
-  }
-
-  Future<void> _capture() async {
-    if (_capturing || _ctrl == null || !_ctrl!.value.isInitialized) return;
-    _autoTimer?.cancel();
-    _countdownTimer?.cancel();
-
-    setState(() { _capturing = true; _countdown = 0; });
-
-    try {
-      final image = await _ctrl!.takePicture();
-      final dir = await getTemporaryDirectory();
-      final dest = '${dir.path}/cardify_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      await File(image.path).copy(dest);
-      widget.onCapture(File(dest));
-
-      if (widget.continuous && mounted) {
-        await Future.delayed(const Duration(milliseconds: 500));
-        if (mounted) {
-          setState(() { _capturing = false; _focused = false; });
-          _startAutoTimer();
-        }
-      } else {
-        if (mounted) Navigator.pop(context);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() { _capturing = false; });
-        _startAutoTimer();
-      }
-    }
-  }
-
-  // 手動點擊對焦並重置計時器
   Future<void> _onTapFocus(TapDownDetails details) async {
     if (_ctrl == null || !_ctrl!.value.isInitialized) return;
     final size = MediaQuery.of(context).size;
@@ -164,11 +95,75 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
       await _ctrl!.setFocusPoint(Offset(x, y));
       await _ctrl!.setExposurePoint(Offset(x, y));
     } catch (_) {}
-    _startAutoTimer(); // 點對焦後重新開始計時
+  }
+
+  Future<void> _capture() async {
+    if (_capturing || _ctrl == null || !_ctrl!.value.isInitialized) return;
+
+    // 達到上限時提示並關閉
+    if (_shotCount >= CameraScreen.maxShots) {
+      _showLimitDialog();
+      return;
+    }
+
+    setState(() => _capturing = true);
+
+    try {
+      final image = await _ctrl!.takePicture();
+      final dir = await getTemporaryDirectory();
+      final dest = '${dir.path}/cardify_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      await File(image.path).copy(dest);
+      widget.onCapture(File(dest));
+      _shotCount++;
+
+      // 顯示成功提示
+      setState(() { _capturing = false; _showSuccess = true; });
+      _successTimer?.cancel();
+      _successTimer = Timer(const Duration(milliseconds: 1200), () {
+        if (mounted) setState(() => _showSuccess = false);
+      });
+
+      // 達到上限自動提示
+      if (_shotCount >= CameraScreen.maxShots) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        if (mounted) _showLimitDialog();
+        return;
+      }
+
+      // 單張模式：拍完直接離開
+      if (!widget.continuous && mounted) {
+        await Future.delayed(const Duration(milliseconds: 600));
+        if (mounted) Navigator.pop(context);
+      }
+
+    } catch (e) {
+      if (mounted) setState(() => _capturing = false);
+    }
+  }
+
+  void _showLimitDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('已達上限'),
+        content: Text('單次最多掃描 ${CameraScreen.maxShots} 張，請先等待目前的辨識完成後再繼續。'),
+        actions: [
+          ElevatedButton(
+            onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1a1a1a), foregroundColor: Colors.white),
+            child: const Text('回到佇列'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final remaining = CameraScreen.maxShots - _shotCount;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: GestureDetector(
@@ -180,98 +175,87 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
           else
             const Center(child: CircularProgressIndicator(color: Colors.white)),
 
-          // 名片對準框
-          if (_initialized)
-            Center(
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.85,
-                height: MediaQuery.of(context).size.width * 0.85 / 1.6,
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: _capturing
-                      ? Colors.white
-                      : (_countdown <= 1 ? const Color(0xFF1D9E75) : Colors.white70),
-                    width: _countdown <= 1 ? 3 : 1.5,
+          // 拍照成功 overlay
+          if (_showSuccess)
+            Positioned.fill(
+              child: AnimatedOpacity(
+                opacity: _showSuccess ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  color: Colors.black45,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 20),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F6E56),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        const Icon(Icons.check_circle_outline, color: Colors.white, size: 48),
+                        const SizedBox(height: 8),
+                        const Text('拍攝成功',
+                          style: TextStyle(color: Colors.white, fontSize: 18,
+                            fontWeight: FontWeight.w600, decoration: TextDecoration.none)),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.continuous
+                            ? '還可拍 $remaining 張'
+                            : '已加入辨識佇列',
+                          style: const TextStyle(color: Colors.white70, fontSize: 13,
+                            decoration: TextDecoration.none)),
+                      ]),
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
 
-          // 上方提示
+          // 上方提示列
           Positioned(
             top: MediaQuery.of(context).padding.top + 16,
             left: 16, right: 16,
-            child: Column(children: [
-              Text(
-                _capturing
-                  ? '拍攝中...'
-                  : _countdown > 0
-                    ? '對準名片　$_countdown 秒後自動拍攝'
-                    : '準備拍攝...',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w500,
-                  color: _countdown <= 1 && !_capturing
-                    ? const Color(0xFF4ADE80) : Colors.white,
-                  decoration: TextDecoration.none,
-                ),
-              ),
-              if (widget.continuous) ...[
-                const SizedBox(height: 4),
-                const Text('連續掃描中・按關閉結束',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.white54,
+            child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              // 張數指示器
+              if (widget.continuous)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$_shotCount / ${CameraScreen.maxShots}',
+                    style: TextStyle(
+                      color: remaining <= 3 ? Colors.orange : Colors.white,
+                      fontSize: 13, fontWeight: FontWeight.w500,
+                      decoration: TextDecoration.none),
+                  ),
+                )
+              else
+                const SizedBox(),
+
+              // 點擊對焦提示
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.black45, borderRadius: BorderRadius.circular(20)),
+                child: const Text('點擊畫面對焦',
+                  style: TextStyle(color: Colors.white54, fontSize: 11,
                     decoration: TextDecoration.none)),
-              ],
-              const SizedBox(height: 6),
-              const Text('點擊畫面可對焦・點快門立即拍攝',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: Colors.white38,
-                  decoration: TextDecoration.none)),
+              ),
             ]),
           ),
-
-          // 倒數圓圈
-          if (_countdown > 0 && !_capturing)
-            Center(
-              child: Container(
-                width: 56, height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black45,
-                  border: Border.all(
-                    color: _countdown <= 1
-                      ? const Color(0xFF4ADE80) : Colors.white70,
-                    width: 2),
-                ),
-                child: Center(
-                  child: Text('$_countdown',
-                    style: TextStyle(
-                      fontSize: 24, fontWeight: FontWeight.bold,
-                      color: _countdown <= 1
-                        ? const Color(0xFF4ADE80) : Colors.white,
-                      decoration: TextDecoration.none,
-                    )),
-                ),
-              ),
-            ),
 
           // 底部按鈕
           Positioned(
             bottom: MediaQuery.of(context).padding.bottom + 32,
             left: 0, right: 0,
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-              // 關閉
               _circleBtn(Icons.close, Colors.white60, () => Navigator.pop(context)),
 
-              // 快門（立即拍）
+              // 快門
               GestureDetector(
-                onTap: _capturing ? null : () {
-                  _countdownTimer?.cancel();
-                  setState(() => _countdown = 0);
-                  _capture();
-                },
+                onTap: _capturing ? null : _capture,
                 child: Container(
                   width: 72, height: 72,
                   decoration: BoxDecoration(
@@ -311,8 +295,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
       onTap: onTap,
       child: Container(
         width: 48, height: 48,
-        decoration: const BoxDecoration(
-          shape: BoxShape.circle, color: Colors.black38),
+        decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.black38),
         child: Icon(icon, color: color, size: 24),
       ),
     );
