@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/settings_service.dart';
+import '../services/export_service.dart';
 import '../services/contact_store.dart';
 import '../services/export_service.dart';
 
@@ -14,7 +15,6 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _apiKeyCtrl = TextEditingController();
   final _modelCtrl  = TextEditingController();
-  final _urlCtrl    = TextEditingController();
   bool _showKey = false;
   int _count = 0;
   bool _exporting = false;
@@ -32,7 +32,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {
       _apiKeyCtrl.text = s.apiKey;
       _modelCtrl.text  = s.model;
-      _urlCtrl.text    = s.baseUrl;
       _count = contacts.length;
     });
   }
@@ -41,7 +40,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final s = AppSettings(
       apiKey: _apiKeyCtrl.text.trim(),
       model: _modelCtrl.text.trim(),
-      baseUrl: _urlCtrl.text.trim(),
     );
     await s.save();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('設定已儲存')));
@@ -157,9 +155,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           _divider(),
           _fieldRow('端點', Icons.link,
-            TextField(controller: _urlCtrl, keyboardType: TextInputType.url,
-              decoration: const InputDecoration(border: InputBorder.none, hintText: 'https://api.ollama.com'),
-              style: const TextStyle(fontSize: 14)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(kOllamaBaseUrl,
+                style: TextStyle(fontSize: 14, color: Colors.grey[400])),
+            ),
           ),
         ]),
         Padding(
@@ -210,7 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         _sectionLabel('關於'),
         _card([
-          const ListTile(leading: Icon(Icons.info_outline), title: Text('名片掃描器'),
+          const ListTile(leading: Icon(Icons.info_outline), title: Text('Cardify'),
             trailing: Text('v1.1.0', style: TextStyle(color: Colors.grey))),
         ]),
         const SizedBox(height: 40),
