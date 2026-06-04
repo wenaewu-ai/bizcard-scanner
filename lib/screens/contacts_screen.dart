@@ -305,6 +305,7 @@ class _DetailSheet extends StatelessWidget {
       if (c.address.isNotEmpty) (Icons.location_on_outlined,'地址', 'geo:0,0?q=${Uri.encodeComponent(c.address)}', c.address),
       if (c.line.isNotEmpty)    (Icons.chat_outlined,      'LINE',  'https://line.me/ti/p/~${c.line}', c.line),
       if (c.taxId.isNotEmpty)   (Icons.tag,                '統編',  null,                        c.taxId),
+      if (c.industry.isNotEmpty) (Icons.business_center,    '行業',  null,                        c.industry),
       if (c.notes.isNotEmpty)   (Icons.note_outlined,      '備註',  null,                        c.notes),
     ];
 

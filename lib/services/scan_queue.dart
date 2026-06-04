@@ -7,6 +7,7 @@ import '../models/contact.dart';
 import 'ollama_service.dart';
 import 'settings_service.dart';
 import 'contact_store.dart';
+import 'gcis_service.dart';
 
 enum ScanJobStatus { pending, scanning, duplicate, done, error }
 
@@ -63,6 +64,7 @@ class ScanQueue extends ChangeNotifier {
         baseUrl: settings.baseUrl,
       );
       final contact = await service.scanCard(b64);
+
       job.result = contact;
 
       // 檢查重複
@@ -74,6 +76,17 @@ class ScanQueue extends ChangeNotifier {
       } else {
         await ContactStore.add(contact);
         job.status = ScanJobStatus.done;
+
+        // 非同步查統編行業（失敗不影響任何事）
+        if (contact.taxId.isNotEmpty) {
+          GcisService.lookupIndustry(contact.taxId).then((industry) async {
+            if (industry != null && industry.isNotEmpty) {
+              contact.industry = industry;
+              await ContactStore.update(contact);
+              notifyListeners();
+            }
+          }).catchError((_) {});
+        }
       }
     } catch (e) {
       job.status = ScanJobStatus.error;

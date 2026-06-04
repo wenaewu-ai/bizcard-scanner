@@ -17,7 +17,17 @@ class ContactStore {
     final raw = prefs.getString(_key);
     if (raw == null) return [];
     final list = jsonDecode(raw) as List;
-    return list.map((e) => Contact.fromJson(e)).toList();
+    final contacts = list.map((e) => Contact.fromJson(e)).toList();
+    // 依公司名稱排序，沒有公司的排最後
+    contacts.sort((a, b) {
+      final ca = a.company.toLowerCase();
+      final cb = b.company.toLowerCase();
+      if (ca.isEmpty && cb.isEmpty) return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      if (ca.isEmpty) return 1;
+      if (cb.isEmpty) return -1;
+      return ca.compareTo(cb);
+    });
+    return contacts;
   }
 
   static Future<void> _save(List<Contact> contacts) async {

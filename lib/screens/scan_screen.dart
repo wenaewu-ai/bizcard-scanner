@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/contact.dart';
 import '../services/scan_queue.dart';
+import '../services/contact_store.dart';
 import '../widgets/contact_avatar.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'camera_screen.dart';
@@ -259,20 +260,8 @@ class _ScanScreenState extends State<ScanScreen> {
             Row(children: [
               const Icon(Icons.check_circle_outline, size: 13, color: Color(0xFF1D9E75)),
               const SizedBox(width: 3),
-              const Text('已存入聯絡人', style: TextStyle(fontSize: 12, color: Color(0xFF1D9E75))),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () async {
-                  final updated = await Navigator.push<Contact>(context,
-                    MaterialPageRoute(builder: (_) => EditContactScreen(contact: job.result!)));
-                  if (updated != null) setState(() => job.result = updated);
-                },
-                child: Row(children: [
-                  Icon(Icons.edit_outlined, size: 13, color: Colors.grey[400]),
-                  const SizedBox(width: 3),
-                  Text('編輯', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-                ]),
-              ),
+              const Text('已存入・點卡片可編輯',
+                style: TextStyle(fontSize: 12, color: Color(0xFF1D9E75))),
             ]),
           ],
 
@@ -315,6 +304,7 @@ class _ScanScreenState extends State<ScanScreen> {
           ],
         ])),
       ]),
+      ),
     );
   }
 

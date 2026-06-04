@@ -102,7 +102,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
     if (_capturing || _ctrl == null || !_ctrl!.value.isInitialized) return;
 
     // 達到上限時提示並關閉
-    if (_shotCount >= CameraScreen.maxShots) {
+    if (_shotCount >= widget.maxShots) {
       _showLimitDialog();
       return;
     }
@@ -125,7 +125,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
       });
 
       // 達到上限自動提示
-      if (_shotCount >= CameraScreen.maxShots) {
+      if (_shotCount >= widget.maxShots) {
         await Future.delayed(const Duration(milliseconds: 800));
         if (mounted) _showLimitDialog();
         return;
@@ -148,7 +148,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: const Text('已達上限'),
-        content: Text('單次最多掃描 ${CameraScreen.maxShots} 張，請先等待目前的辨識完成後再繼續。'),
+        content: Text('單次最多掃描 ${widget.maxShots} 張，請先等待目前的辨識完成後再繼續。'),
         actions: [
           ElevatedButton(
             onPressed: () { Navigator.pop(context); Navigator.pop(context); },
@@ -163,7 +163,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
 
   @override
   Widget build(BuildContext context) {
-    final remaining = CameraScreen.maxShots - _shotCount;
+    final remaining = widget.maxShots - _shotCount;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -225,7 +225,7 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    '$_shotCount / ${CameraScreen.maxShots}',
+                    '$_shotCount / ${widget.maxShots}',
                     style: TextStyle(
                       color: remaining <= 3 ? Colors.orange : Colors.white,
                       fontSize: 13, fontWeight: FontWeight.w500,

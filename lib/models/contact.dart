@@ -17,6 +17,7 @@ class Contact {
   String website;
   String line;
   String notes;
+  String industry; // 行業大類（從統編查詢）
 
   Contact({
     required this.id,
@@ -34,6 +35,7 @@ class Contact {
     this.website = '',
     this.line = '',
     this.notes = '',
+    this.industry = '',
   });
 
   factory Contact.empty() => Contact(
@@ -57,6 +59,7 @@ class Contact {
         website: j['website'] ?? '',
         line: j['line'] ?? '',
         notes: j['notes'] ?? '',
+        industry: j['industry'] ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -75,6 +78,7 @@ class Contact {
         'website': website,
         'line': line,
         'notes': notes,
+        'industry': industry,
       };
 
   // 產生 vCard 3.0 字串
