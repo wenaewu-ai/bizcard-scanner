@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:camera/camera.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
@@ -64,6 +65,26 @@ class _CameraScreenState extends State<CameraScreen> with WidgetsBindingObserver
   }
 
   Future<void> _initCamera() async {
+    // 先請求相機權限
+    final status = await Permission.camera.request();
+    if (!status.isGranted) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('需要相機權限'),
+            content: const Text('請到手機設定開啟 Cardify 的相機權限'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+              TextButton(
+                onPressed: () { Navigator.pop(context); openAppSettings(); },
+                child: const Text('去設定')),
+            ],
+          ),
+        );
+      }
+      return;
+    }
     final cameras = await availableCameras();
     if (cameras.isEmpty) return;
 

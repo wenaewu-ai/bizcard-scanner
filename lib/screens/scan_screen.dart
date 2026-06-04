@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/contact.dart';
 import '../services/scan_queue.dart';
 import '../widgets/contact_avatar.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'camera_screen.dart';
 import 'edit_contact_screen.dart';
 
@@ -40,8 +41,14 @@ class _ScanScreenState extends State<ScanScreen> {
     }
   }
 
-  // 開啟內建相機（單張）
-  void _openCamera({bool continuous = false}) {
+  // 開啟內建相機
+  Future<void> _openCamera({bool continuous = false}) async {
+    final status = await Permission.camera.status;
+    if (!status.isGranted) {
+      final result = await Permission.camera.request();
+      if (!result.isGranted) return;
+    }
+    if (!mounted) return;
     Navigator.push(context, MaterialPageRoute(
       builder: (_) => CameraScreen(
         continuous: continuous,
