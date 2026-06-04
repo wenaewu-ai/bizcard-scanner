@@ -49,9 +49,29 @@ class _ScanScreenState extends State<ScanScreen> {
       if (!result.isGranted) return;
     }
     if (!mounted) return;
+
+    // 計算可拍上限：總上限 10，減去目前佇列中還沒完成的筆數
+    const totalLimit = 10;
+    final inQueue = _queue.jobs
+        .where((j) => j.status == ScanJobStatus.pending || j.status == ScanJobStatus.scanning)
+        .length;
+    final canShoot = (totalLimit - inQueue).clamp(0, totalLimit);
+
+    if (canShoot == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('目前佇列已有 10 筆待辨識，請等待完成後再拍'),
+          backgroundColor: Color(0xFF1a1a1a),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     Navigator.push(context, MaterialPageRoute(
       builder: (_) => CameraScreen(
         continuous: continuous,
+        maxShots: canShoot,
         onCapture: (file) => _queue.addJob(file),
       ),
     ));

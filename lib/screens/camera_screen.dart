@@ -9,12 +9,13 @@ import 'package:permission_handler/permission_handler.dart';
 class CameraScreen extends StatefulWidget {
   final bool continuous;
   final void Function(File image) onCapture;
-  static const maxShots = 10; // 單次連續掃描上限
+  final int maxShots; // 動態上限，由外部傳入
 
   const CameraScreen({
     super.key,
     required this.onCapture,
     this.continuous = false,
+    this.maxShots = 10,
   });
 
   @override

@@ -87,8 +87,18 @@ class _ContactsScreenState extends State<ContactsScreen> {
       builder: (_) => _DetailSheet(
         contact: c,
         onDelete: () async {
+          // bottom sheet 已在 _DetailSheet 內關閉後才呼叫
           await ContactStore.delete(c.id);
           _load();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('已刪除「${c.name.isNotEmpty ? c.name : '聯絡人'}」'),
+                backgroundColor: const Color(0xFF1a1a1a),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
         },
         onQR: () => Navigator.push(context,
           MaterialPageRoute(builder: (_) => QRShareScreen(contact: c))),
@@ -371,14 +381,19 @@ class _DetailSheet extends StatelessWidget {
               const SizedBox(width: 8),
               OutlinedButton(
                 onPressed: () {
-                  Navigator.pop(context);
-                  showDialog(context: context, builder: (_) => AlertDialog(
+                  showDialog(context: context, builder: (dialogCtx) => AlertDialog(
                     title: const Text('確認刪除'),
-                    content: Text('刪除「${c.name}」？'),
+                    content: Text('刪除「${c.name.isNotEmpty ? c.name : '此聯絡人'}」？'),
                     actions: [
-                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
                       TextButton(
-                        onPressed: () { Navigator.pop(context); onDelete(); },
+                        onPressed: () => Navigator.pop(dialogCtx),
+                        child: const Text('取消')),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(dialogCtx);
+                          Navigator.pop(context);
+                          onDelete();
+                        },
                         child: const Text('刪除', style: TextStyle(color: Colors.red))),
                     ],
                   ));
