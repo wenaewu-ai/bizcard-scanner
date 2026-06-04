@@ -220,90 +220,101 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Widget _buildJobCard(ScanJob job) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: job.status == ScanJobStatus.duplicate
-            ? const Color(0xFFEF9F27) : const Color(0xFFE8E6DF),
-          width: job.status == ScanJobStatus.duplicate ? 1.5 : 0.5,
+    return GestureDetector(
+      onTap: job.status == ScanJobStatus.done && job.result != null
+        ? () async {
+            final updated = await Navigator.push<Contact>(context,
+              MaterialPageRoute(builder: (_) => EditContactScreen(contact: job.result!)));
+            if (updated != null) {
+              await ContactStore.update(updated);
+              setState(() => job.result = updated);
+            }
+          }
+        : null,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: job.status == ScanJobStatus.duplicate
+              ? const Color(0xFFEF9F27) : const Color(0xFFE8E6DF),
+            width: job.status == ScanJobStatus.duplicate ? 1.5 : 0.5,
+          ),
         ),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.file(job.imageFile, width: 64, height: 64, fit: BoxFit.cover),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            _statusBadge(job.status),
-            const Spacer(),
-            if (job.status == ScanJobStatus.error || job.status == ScanJobStatus.done)
-              GestureDetector(
-                onTap: () => _queue.removeJob(job.id),
-                child: const Icon(Icons.close, size: 18, color: Color(0xFFAAAAAA)),
-              ),
-          ]),
-          const SizedBox(height: 6),
-
-          if (job.status == ScanJobStatus.done && job.result != null) ...[
-            Text(job.result!.name.isNotEmpty ? job.result!.name : '（未辨識到姓名）',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            if (job.result!.company.isNotEmpty)
-              Text(job.result!.company, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-            if (job.result!.mobile.isNotEmpty)
-              Text(job.result!.mobile, style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-            const SizedBox(height: 6),
+        padding: const EdgeInsets.all(12),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(job.imageFile, width: 64, height: 64, fit: BoxFit.cover),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              const Icon(Icons.check_circle_outline, size: 13, color: Color(0xFF1D9E75)),
-              const SizedBox(width: 3),
-              const Text('已存入・點卡片可編輯',
-                style: TextStyle(fontSize: 12, color: Color(0xFF1D9E75))),
-            ]),
-          ],
-
-          if (job.status == ScanJobStatus.duplicate) ...[
-            Text(job.result?.name ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Row(children: [
-              const Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFBA7517)),
-              const SizedBox(width: 4),
-              const Text('與現有聯絡人手機相同', style: TextStyle(fontSize: 12, color: Color(0xFFBA7517))),
+              _statusBadge(job.status),
+              const Spacer(),
+              if (job.status == ScanJobStatus.error || job.status == ScanJobStatus.done)
+                GestureDetector(
+                  onTap: () => _queue.removeJob(job.id),
+                  child: const Icon(Icons.close, size: 18, color: Color(0xFFAAAAAA)),
+                ),
             ]),
             const SizedBox(height: 6),
-            Row(children: [
-              _smallActionBtn('更新舊的', const Color(0xFF1a1a1a), Colors.white,
-                () { _handlingDuplicateId = null; _queue.resolveUpdate(job.id); }),
-              const SizedBox(width: 6),
-              _smallActionBtn('另存新的', Colors.transparent, const Color(0xFF1a1a1a),
-                () { _handlingDuplicateId = null; _queue.resolveKeepBoth(job.id); },
-                border: const Color(0xFFD0CEC7)),
-              const SizedBox(width: 6),
-              _smallActionBtn('略過', Colors.transparent, Colors.grey,
-                () { _handlingDuplicateId = null; _queue.resolveSkip(job.id); },
-                border: const Color(0xFFE0DDD5)),
-            ]),
-          ],
 
-          if (job.status == ScanJobStatus.scanning)
-            const Text('辨識中...', style: TextStyle(fontSize: 13, color: Color(0xFF888888))),
+            if (job.status == ScanJobStatus.done && job.result != null) ...[
+              Text(job.result!.name.isNotEmpty ? job.result!.name : '（未辨識到姓名）',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              if (job.result!.company.isNotEmpty)
+                Text(job.result!.company, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              if (job.result!.mobile.isNotEmpty)
+                Text(job.result!.mobile, style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+              const SizedBox(height: 6),
+              Row(children: [
+                const Icon(Icons.check_circle_outline, size: 13, color: Color(0xFF1D9E75)),
+                const SizedBox(width: 3),
+                const Text('已存入・點卡片可編輯',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF1D9E75))),
+              ]),
+            ],
 
-          if (job.status == ScanJobStatus.pending)
-            const Text('等待辨識', style: TextStyle(fontSize: 13, color: Color(0xFFAAAAAA))),
+            if (job.status == ScanJobStatus.duplicate) ...[
+              Text(job.result?.name ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Row(children: [
+                const Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFBA7517)),
+                const SizedBox(width: 4),
+                const Text('與現有聯絡人手機相同', style: TextStyle(fontSize: 12, color: Color(0xFFBA7517))),
+              ]),
+              const SizedBox(height: 6),
+              Row(children: [
+                _smallActionBtn('更新舊的', const Color(0xFF1a1a1a), Colors.white,
+                  () { _handlingDuplicateId = null; _queue.resolveUpdate(job.id); }),
+                const SizedBox(width: 6),
+                _smallActionBtn('另存新的', Colors.transparent, const Color(0xFF1a1a1a),
+                  () { _handlingDuplicateId = null; _queue.resolveKeepBoth(job.id); },
+                  border: const Color(0xFFD0CEC7)),
+                const SizedBox(width: 6),
+                _smallActionBtn('略過', Colors.transparent, Colors.grey,
+                  () { _handlingDuplicateId = null; _queue.resolveSkip(job.id); },
+                  border: const Color(0xFFE0DDD5)),
+              ]),
+            ],
 
-          if (job.status == ScanJobStatus.error) ...[
-            Text('失敗：${job.errorMsg ?? '未知錯誤'}',
-              style: const TextStyle(fontSize: 12, color: Color(0xFFE24B4A)),
-              maxLines: 2, overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 6),
-            _smallActionBtn('重試', const Color(0xFF1a1a1a), Colors.white,
-              () => _queue.retryJob(job.id)),
-          ],
-        ])),
-      ]),
+            if (job.status == ScanJobStatus.scanning)
+              const Text('辨識中...', style: TextStyle(fontSize: 13, color: Color(0xFF888888))),
+
+            if (job.status == ScanJobStatus.pending)
+              const Text('等待辨識', style: TextStyle(fontSize: 13, color: Color(0xFFAAAAAA))),
+
+            if (job.status == ScanJobStatus.error) ...[
+              Text('失敗：${job.errorMsg ?? "未知錯誤"}',
+                style: const TextStyle(fontSize: 12, color: Color(0xFFE24B4A)),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 6),
+              _smallActionBtn('重試', const Color(0xFF1a1a1a), Colors.white,
+                () => _queue.retryJob(job.id)),
+            ],
+          ])),
+        ]),
       ),
     );
   }
