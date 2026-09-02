@@ -128,7 +128,8 @@ class _ScanScreenState extends State<ScanScreen> {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
       child: Row(children: [
-        ContactAvatar(name: c.name, size: 36),
+        ContactAvatar(name: c.name, size: 36,
+          thumbnail: c.thumbnail, cacheKey: c.id),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(

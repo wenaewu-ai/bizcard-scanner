@@ -4,7 +4,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/settings_service.dart';
 import '../services/export_service.dart';
 import '../services/contact_store.dart';
-import '../services/export_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,7 +15,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _apiKeyCtrl = TextEditingController();
   final _modelCtrl  = TextEditingController();
   bool _showKey = false;
+  bool _saveThumbnail = true;
   int _count = 0;
+  int _thumbCount = 0;
+  int _thumbBytes = 0;
   bool _exporting = false;
   bool _importing = false;
 
@@ -29,10 +31,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _load() async {
     final s = await AppSettings.load();
     final contacts = await ContactStore.load();
+    if (!mounted) return;
     setState(() {
       _apiKeyCtrl.text = s.apiKey;
       _modelCtrl.text  = s.model;
+      _saveThumbnail = s.saveThumbnail;
       _count = contacts.length;
+      _thumbCount = contacts.where((c) => c.hasThumbnail).length;
+      _thumbBytes = contacts.fold<int>(0, (sum, c) => sum + c.thumbnailBytes);
     });
   }
 
@@ -40,6 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final s = AppSettings(
       apiKey: _apiKeyCtrl.text.trim(),
       model: _modelCtrl.text.trim(),
+      saveThumbnail: _saveThumbnail,
     );
     await s.save();
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('設定已儲存')));
@@ -57,6 +64,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ListTile(leading: const Icon(Icons.contact_page_outlined), title: const Text('vCard (.vcf)'),
           subtitle: const Text('可直接匯入通訊錄'),
           onTap: () { Navigator.pop(context); _doExport(0, contacts); }),
+        ListTile(leading: const Icon(Icons.badge_outlined), title: const Text('vCard（含名片圖）'),
+          subtitle: const Text('把名片縮圖一併寫入，檔案較大'),
+          onTap: () { Navigator.pop(context); _doExport(3, contacts); }),
         ListTile(leading: const Icon(Icons.table_chart_outlined), title: const Text('Excel CSV (.csv)'),
           onTap: () { Navigator.pop(context); _doExport(1, contacts); }),
         ListTile(leading: const Icon(Icons.backup_outlined), title: const Text('JSON 備份'),
@@ -71,6 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       if (type == 0) await ExportService.exportVCard(contacts);
       else if (type == 1) await ExportService.exportCSV(contacts);
+      else if (type == 3) await ExportService.exportVCard(contacts, withPhoto: true);
       else await ExportService.exportJSON(contacts);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('匯出失敗：$e')));
@@ -91,12 +102,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           builder: (_) => AlertDialog(
             title: const Text('匯入完成'),
             content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('✓ 成功匯入：\${result.imported} 筆'),
+              Text('✓ 成功匯入：${result.imported} 筆'),
               if (result.duplicates > 0)
-                Text('⚠ 手機重複略過：\${result.duplicates} 筆',
+                Text('⚠ 手機重複略過：${result.duplicates} 筆',
                   style: const TextStyle(color: Color(0xFFBA7517))),
               if (result.skipped > 0)
-                Text('✗ 格式錯誤略過：\${result.skipped} 筆',
+                Text('✗ 格式錯誤略過：${result.skipped} 筆',
                   style: TextStyle(color: Colors.grey[400])),
             ]),
             actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('確定'))],
@@ -108,6 +119,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
         SnackBar(content: Text('匯入失敗：$e')));
     } finally {
       setState(() => _importing = false);
+    }
+  }
+
+  static String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+  }
+
+  Future<void> _clearThumbnails() async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => AlertDialog(
+      title: const Text('清除所有名片縮圖'),
+      content: const Text('只刪除縮圖，聯絡人資料會保留。此操作無法復原。'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('取消')),
+        TextButton(onPressed: () => Navigator.pop(context, true),
+          child: const Text('確認清除', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    await ContactStore.clearThumbnails();
+    await _load();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('已清除名片縮圖')));
     }
   }
 
@@ -202,6 +238,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               : const Icon(Icons.chevron_right, color: Color(0xFFD0CEC7)),
             onTap: _importing ? null : _import),
           _divider(),
+          SwitchListTile(
+            secondary: const Icon(Icons.image_outlined),
+            title: const Text('儲存名片縮圖'),
+            subtitle: const Text('掃描後自動裁切壓縮，存成 base64'),
+            value: _saveThumbnail,
+            activeColor: const Color(0xFF1a1a1a),
+            onChanged: (v) async {
+              setState(() => _saveThumbnail = v);
+              final s = await AppSettings.load();
+              s.saveThumbnail = v;
+              await s.save();
+            },
+          ),
+          _divider(),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('縮圖佔用空間'),
+            subtitle: Text('$_thumbCount 張・${_formatBytes(_thumbBytes)}'),
+            trailing: _thumbCount == 0 ? null : TextButton(
+              onPressed: _clearThumbnails,
+              child: const Text('清除', style: TextStyle(color: Colors.red)),
+            ),
+          ),
+          _divider(),
           ListTile(leading: const Icon(Icons.delete_outline, color: Colors.red),
             title: const Text('清除所有聯絡人', style: TextStyle(color: Colors.red)),
             subtitle: const Text('無法復原'),
@@ -211,7 +271,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _sectionLabel('關於'),
         _card([
           const ListTile(leading: Icon(Icons.info_outline), title: Text('Cardify'),
-            trailing: Text('v1.1.0', style: TextStyle(color: Colors.grey))),
+            trailing: Text('v1.5.0', style: TextStyle(color: Colors.grey))),
         ]),
         const SizedBox(height: 40),
       ]),

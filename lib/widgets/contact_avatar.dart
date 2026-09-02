@@ -1,5 +1,6 @@
 // lib/widgets/contact_avatar.dart
 import 'package:flutter/material.dart';
+import '../services/thumbnail_service.dart';
 
 const _bgs = [
   Color(0xFFE1F5EE), Color(0xFFE6F1FB), Color(0xFFFAEEDA),
@@ -10,11 +11,20 @@ const _fgs = [
   Color(0xFF993556), Color(0xFF3B6D11),
 ];
 
+/// 有名片縮圖就顯示縮圖（圓角方形），沒有就退回彩色縮寫頭像（圓形）
 class ContactAvatar extends StatelessWidget {
   final String name;
   final double size;
+  final String? thumbnail; // base64 JPEG
+  final String? cacheKey;  // 通常傳 contact.id，避免每次 build 都重新 decode
 
-  const ContactAvatar({super.key, required this.name, this.size = 42});
+  const ContactAvatar({
+    super.key,
+    required this.name,
+    this.size = 42,
+    this.thumbnail,
+    this.cacheKey,
+  });
 
   String get _initials {
     if (name.isEmpty) return '?';
@@ -25,6 +35,27 @@ class ContactAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final b64 = thumbnail;
+    if (b64 != null && b64.isNotEmpty) {
+      final bytes = ThumbCache.bytes(cacheKey ?? name, b64);
+      if (bytes != null) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(size * 0.26),
+          child: Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _initialsBox(),
+          ),
+        );
+      }
+    }
+    return _initialsBox();
+  }
+
+  Widget _initialsBox() {
     final idx = name.isEmpty ? 0 : name.codeUnitAt(0) % _bgs.length;
     return Container(
       width: size,

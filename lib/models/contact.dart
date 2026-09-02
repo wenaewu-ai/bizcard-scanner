@@ -1,5 +1,4 @@
 // lib/models/contact.dart
-import 'dart:convert';
 
 class Contact {
   final String id;
@@ -19,6 +18,9 @@ class Contact {
   String notes;
   String industry; // 行業大類（從統編查詢）
 
+  // 名片縮圖（裁切壓縮後的 JPEG，base64，不含 data: 前綴）
+  String thumbnail;
+
   Contact({
     required this.id,
     required this.createdAt,
@@ -36,7 +38,13 @@ class Contact {
     this.line = '',
     this.notes = '',
     this.industry = '',
+    this.thumbnail = '',
   });
+
+  bool get hasThumbnail => thumbnail.isNotEmpty;
+
+  /// 縮圖大約佔用的位元組數（base64 → 原始 JPEG）
+  int get thumbnailBytes => thumbnail.isEmpty ? 0 : (thumbnail.length * 3) ~/ 4;
 
   factory Contact.empty() => Contact(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -60,6 +68,7 @@ class Contact {
         line: j['line'] ?? '',
         notes: j['notes'] ?? '',
         industry: j['industry'] ?? '',
+        thumbnail: j['thumbnail'] ?? '',
       );
 
   Map<String, dynamic> toJson() => {
@@ -79,10 +88,14 @@ class Contact {
         'line': line,
         'notes': notes,
         'industry': industry,
+        'thumbnail': thumbnail,
       };
 
-  // 產生 vCard 3.0 字串
-  String toVCard() {
+  /// 產生 vCard 3.0 字串
+  ///
+  /// [includePhoto] 為 true 時會把名片縮圖以 base64 塞進 PHOTO 欄位。
+  /// QR 分享務必保持 false —— 幾十 KB 的圖塞不進 QR code。
+  String toVCard({bool includePhoto = false}) {
     final lines = <String>[
       'BEGIN:VCARD',
       'VERSION:3.0',
@@ -101,12 +114,28 @@ class Contact {
       if (line.isNotEmpty) 'X-LINE:$line',
       if (taxId.isNotEmpty) 'X-TAX-ID:$taxId',
       if (notes.isNotEmpty) 'NOTE:$notes',
+      if (includePhoto && thumbnail.isNotEmpty)
+        _fold('PHOTO;ENCODING=b;TYPE=JPEG:$thumbnail'),
       'END:VCARD',
     ];
     return lines.join('\r\n');
   }
 
-  // 搜尋比對
+  /// vCard 規定單行不超過 75 字元，超過要折行（下一行開頭一個空白）
+  static String _fold(String line) {
+    if (line.length <= 75) return line;
+    final buf = StringBuffer(line.substring(0, 75));
+    var i = 75;
+    while (i < line.length) {
+      final end = i + 74 < line.length ? i + 74 : line.length;
+      buf.write('\r\n ');
+      buf.write(line.substring(i, end));
+      i = end;
+    }
+    return buf.toString();
+  }
+
+  /// 搜尋比對
   bool matches(String query) {
     final q = query.toLowerCase();
     return name.toLowerCase().contains(q) ||

@@ -2,6 +2,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/contact.dart';
+import 'thumbnail_service.dart';
 
 class DuplicateContact {
   final Contact existing;
@@ -82,6 +83,9 @@ class ContactStore {
       website: incoming.website,
       line: incoming.line,
       notes: incoming.notes,
+      // 新的沒查到就沿用舊的，不要因為覆蓋而遺失資料
+      industry: incoming.industry.isNotEmpty ? incoming.industry : existing.industry,
+      thumbnail: incoming.thumbnail.isNotEmpty ? incoming.thumbnail : existing.thumbnail,
     );
     await update(updated);
   }
@@ -99,8 +103,21 @@ class ContactStore {
     await _save(contacts);
   }
 
+  // ── 縮圖 ────────────────────────────────────────────────────────────────
+  // 縮圖是資料裡最肥的部分，給使用者一個只清圖、不刪聯絡人的出口
+
+  static Future<void> clearThumbnails() async {
+    final contacts = await load();
+    for (final c in contacts) {
+      c.thumbnail = '';
+    }
+    await _save(contacts);
+    ThumbCache.clear();
+  }
+
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
+    ThumbCache.clear();
   }
 }

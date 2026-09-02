@@ -16,8 +16,11 @@ class ImportResult {
 
 class ExportService {
   // ── vCard ──────────────────────────────────────────────────────────────────
-  static Future<void> exportVCard(List<Contact> contacts) async {
-    final content = contacts.map((c) => c.toVCard()).join('\r\n');
+  /// [withPhoto] 會把名片縮圖寫進 vCard 的 PHOTO 欄位（檔案會大很多）
+  static Future<void> exportVCard(List<Contact> contacts,
+      {bool withPhoto = false}) async {
+    final content =
+        contacts.map((c) => c.toVCard(includePhoto: withPhoto)).join('\r\n');
     await _shareText(content, 'contacts.vcf', 'text/vcard');
   }
 
@@ -85,6 +88,7 @@ class ExportService {
           mobile: contact.mobile, phone: contact.phone, fax: contact.fax,
           email: contact.email, address: contact.address, website: contact.website,
           line: contact.line, notes: contact.notes,
+          industry: contact.industry, thumbnail: contact.thumbnail,
         );
         await ContactStore.add(newContact);
         imported++;

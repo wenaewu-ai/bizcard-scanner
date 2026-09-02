@@ -8,6 +8,7 @@ import 'ollama_service.dart';
 import 'settings_service.dart';
 import 'contact_store.dart';
 import 'gcis_service.dart';
+import 'thumbnail_service.dart';
 
 enum ScanJobStatus { pending, scanning, duplicate, done, error }
 
@@ -63,7 +64,14 @@ class ScanQueue extends ChangeNotifier {
         model: settings.model,
         baseUrl: settings.baseUrl,
       );
+      // 縮圖在背景 isolate 產生，跟 AI 辨識同時進行，不額外增加等待時間。
+      // 失敗只會回傳空字串，不影響辨識結果。
+      final thumbFuture = settings.saveThumbnail
+          ? ThumbnailService.fromFile(job.imageFile)
+          : Future<String>.value('');
+
       final contact = await service.scanCard(b64);
+      contact.thumbnail = await thumbFuture;
 
       job.result = contact;
 

@@ -4,7 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/contact.dart';
 import '../services/contact_store.dart';
 import '../services/scan_queue.dart';
+import '../services/thumbnail_service.dart';
 import '../widgets/contact_avatar.dart';
+import '../widgets/card_image_view.dart';
 import 'qr_share_screen.dart';
 import 'edit_contact_screen.dart';
 
@@ -174,7 +176,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
               child: Column(
                 children: _suggestions.map((c) => ListTile(
                   dense: true,
-                  leading: ContactAvatar(name: c.name, size: 32),
+                  leading: ContactAvatar(
+                    name: c.name, size: 32,
+                    thumbnail: c.thumbnail, cacheKey: c.id),
                   title: _Highlight(text: c.name, query: _searchCtrl.text),
                   subtitle: Text(
                     [c.company, c.mobile].where((s) => s.isNotEmpty).join('  '),
@@ -211,7 +215,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
                               border: Border.all(color: const Color(0xFFE8E6DF)),
                             ),
                             child: Row(children: [
-                              ContactAvatar(name: c.name),
+                              ContactAvatar(
+                                name: c.name,
+                                thumbnail: c.thumbnail,
+                                cacheKey: c.id),
                               const SizedBox(width: 12),
                               Expanded(child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,6 +302,7 @@ class _DetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = contact;
+    final thumbBytes = c.hasThumbnail ? ThumbCache.bytes(c.id, c.thumbnail) : null;
     // (icon, label, launchUrl, displayText)
     final rows = <(IconData, String, String?, String)>[
       if (c.mobile.isNotEmpty)  (Icons.phone_android,      '手機',  'tel:${c.mobile}',          c.mobile),
@@ -325,7 +333,14 @@ class _DetailSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             child: Row(children: [
-              ContactAvatar(name: c.name, size: 50),
+              GestureDetector(
+                onTap: c.hasThumbnail
+                  ? () => CardImageView.open(context, c)
+                  : null,
+                child: ContactAvatar(
+                  name: c.name, size: 50,
+                  thumbnail: c.thumbnail, cacheKey: c.id),
+              ),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(c.name.isEmpty ? '（未知）' : c.name,
@@ -341,6 +356,23 @@ class _DetailSheet extends StatelessWidget {
           const Divider(height: 1),
           // 欄位列表
           Expanded(child: ListView(controller: ctrl, children: [
+            if (thumbBytes != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                child: GestureDetector(
+                  onTap: () => CardImageView.open(context, c),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.memory(
+                      thumbBytes,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              ),
             for (final r in rows)
               ListTile(
                 leading: Icon(r.$1, color: Colors.grey[400], size: 22),

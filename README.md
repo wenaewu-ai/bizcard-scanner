@@ -1,4 +1,4 @@
-# 名片掃描器 v1.1.0
+# 名片掃描器 v1.5.0
 
 Flutter Android APP — Ollama 雲端 AI 辨識 + QR 名片分享
 
@@ -60,8 +60,9 @@ git push -u origin main
 | 辨識欄位 | 姓名、職稱、部門、公司、統編、手機、市話、傳真、Email、地址、網址、LINE、備註 |
 | 編輯 | 辨識後可逐欄修正 |
 | 搜尋 | 輸入前幾碼即時自動完成 |
+| 名片縮圖 | 自動裁切 + 壓縮成 base64，跟聯絡人一起存在本機 |
 | QR 分享 | 產生標準 vCard QR，對方掃一掃存入通訊錄 |
-| 匯出 | vCard (.vcf)、Excel CSV (.csv)、JSON 備份 |
+| 匯出 | vCard (.vcf，可含名片圖)、Excel CSV (.csv)、JSON 備份 |
 | 本機儲存 | 所有資料存在手機，不上傳任何伺服器 |
 
 ---
@@ -77,6 +78,7 @@ lib/
 │   ├── ollama_service.dart   # Ollama API 呼叫
 │   ├── contact_store.dart    # SharedPreferences CRUD
 │   ├── export_service.dart   # vCard / CSV / JSON 匯出
+│   ├── thumbnail_service.dart# 名片裁切 + 縮圖 + base64
 │   └── settings_service.dart # API Key 設定儲存
 ├── screens/
 │   ├── scan_screen.dart      # 拍照 + AI 辨識
@@ -85,7 +87,8 @@ lib/
 │   ├── edit_contact_screen.dart
 │   └── settings_screen.dart
 └── widgets/
-    └── contact_avatar.dart   # 彩色縮寫頭像
+    ├── contact_avatar.dart   # 名片縮圖 / 彩色縮寫頭像
+    └── card_image_view.dart  # 全螢幕檢視名片
 
 .github/workflows/
 └── build_apk.yml             # GitHub Actions 自動 build APK

@@ -1,6 +1,10 @@
 // lib/screens/edit_contact_screen.dart
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../models/contact.dart';
+import '../services/thumbnail_service.dart';
+import '../widgets/card_image_view.dart';
 
 class EditContactScreen extends StatefulWidget {
   final Contact contact;
@@ -11,6 +15,7 @@ class EditContactScreen extends StatefulWidget {
 
 class _EditContactScreenState extends State<EditContactScreen> {
   late final Map<String, TextEditingController> _ctrls;
+  Uint8List? _thumbBytes;
 
   final _fields = [
     ('name',       '姓名',   Icons.person_outline,       TextInputType.name),
@@ -32,6 +37,7 @@ class _EditContactScreenState extends State<EditContactScreen> {
   void initState() {
     super.initState();
     final c = widget.contact;
+    _thumbBytes = c.hasThumbnail ? ThumbCache.bytes(c.id, c.thumbnail) : null;
     _ctrls = {
       'name':       TextEditingController(text: c.name),
       'title':      TextEditingController(text: c.title),
@@ -83,6 +89,22 @@ class _EditContactScreenState extends State<EditContactScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          if (_thumbBytes != null) ...[
+            GestureDetector(
+              onTap: () => CardImageView.open(context, widget.contact),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(
+                  _thumbBytes!,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Container(
             decoration: BoxDecoration(
               color: Colors.white, borderRadius: BorderRadius.circular(14),
